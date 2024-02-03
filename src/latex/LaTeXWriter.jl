@@ -99,6 +99,7 @@ const DOCUMENT_STRUCTURE = (
     "subparagraph",
 )
 
+
 function render(doc::Documenter.Document, settings::LaTeX=LaTeX())
     @info "LaTeXWriter: creating the LaTeX file."
     mktempdir() do path
@@ -107,8 +108,14 @@ function render(doc::Documenter.Document, settings::LaTeX=LaTeX())
             fileprefix = latex_fileprefix(doc, settings)
             open("$(fileprefix).tex", "w") do io
                 context = Context(io, doc)
+                if isempty(doc.user.pages)
+                    @warn "No pages found. Using doc.internal.navlist for retrieving pages."
+                    contextpages = [i.page for i in doc.internal.navlist]
+                else
+                    contextpages = doc.user.pages
+                end
                 writeheader(context, doc, settings)
-                for (title, filename, depth) in files(doc.user.pages)
+                for (title, filename, depth) in files(contextpages)
                     context.filename = filename
                     empty!(context.footnotes)
                     if 1 <= depth <= length(DOCUMENT_STRUCTURE)
@@ -130,6 +137,11 @@ function render(doc::Documenter.Document, settings::LaTeX=LaTeX())
                 end
                 writefooter(context, doc)
             end
+            # Patch for \ref and \label
+            str = read("$(fileprefix).tex", String)
+            str = replace(str, r"\{\\textbackslash\}(ref|label)\\\{([A-Za-z0-9]+)\\\}" => s"\\\1{\2}" )
+            write("$(fileprefix).tex", str)
+            println("Written $(fileprefix).tex")
             cp(STYLE, "documenter.sty")
 
             # compile .tex
@@ -680,10 +692,14 @@ end
 
 function latex(io::Context, node::Node, image::Documenter.LocalImage)
     # TODO: also print the .title field somehow
+    # CMT: is the node.children the caption?
     wrapblock(io, "figure") do
+        # println("Gotcha!")
+        # println(image.path)
+        # println(image.title)
         _println(io, "\\centering")
         wrapinline(io, "includegraphics[max width=\\linewidth]") do
-            _print(io, image.path)
+            _print(io, replace(image.path, '\\' => '/'))
         end
         _println(io)
         wrapinline(io, "caption") do
