@@ -1787,6 +1787,10 @@ function write_html(ctx::HTMLContext, navnode::Documenter.NavNode, page_html::DO
     elseif file_size > ctx.settings.size_threshold_warn
         @warn size_threshold_msg(:size_threshold_warn)
     end
+    # println(path)
+    str = read(path, String)
+    str = replace(str, r" \(\\ref\{([A-Za-z0-9]+)\}\)" => s"" )
+    write(path, str)
     return true
 end
 
